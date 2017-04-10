@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import javax.enterprise.context.ApplicationScoped;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+import javax.print.attribute.standard.Media;
 import javax.sql.DataSource;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
@@ -62,8 +63,7 @@ public class PatternDAO {
             Statement statement = connection.createStatement();
             SQLSearchRequestConfigurator sqlSearchRequestConfigurator = new SQLSearchRequestConfigurator(patternModel);
             ResultSet resultSet = statement.executeQuery(sqlSearchRequestConfigurator.getSearchRequest());
-            List<PatternModel> allpatterns = new ArrayList<PatternModel>();
-            allpatterns = createLists(resultSet);
+            List<PatternModel> allpatterns = createLists(resultSet);
             statement.close();
             myType = new TypeToken<List<PatternModel>>() {}.getType();
             return gson.toJson(allpatterns, myType);
@@ -72,6 +72,137 @@ public class PatternDAO {
             e.printStackTrace();
         }
         return null;
+    }
+
+    @GET
+    @Path("/name/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public String getPatternByName(@PathParam("name")String patternName){
+        PatternModel patternModel = new PatternModel();
+        patternModel.setName(patternName);
+        try{
+            Statement statement = connection.createStatement();
+            SQLSearchRequestConfigurator sqlSearchRequestConfigurator = new SQLSearchRequestConfigurator(patternModel);
+            ResultSet resultSet = statement.executeQuery(sqlSearchRequestConfigurator.getSearchRequest());
+            List<PatternModel> allPatterns = createLists(resultSet);
+            statement.close();
+            myType = new TypeToken<List<PatternModel>>() {}.getType();
+            return  gson.toJson(allPatterns, myType);
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot get pattern by name");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    @PUT
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response updatePattern(String jsonStr){
+        myType = new TypeToken<List<PatternModel>>() {}.getType();
+        List<PatternModel> updateList = gson.fromJson(jsonStr, myType);
+        PatternModel oldPattern = updateList.get(0);
+        PatternModel newPattern = updateList.get(1);
+        try{
+            if (newPattern.getImage() != null) {
+                PreparedStatement statement = connection.prepareStatement("update govno set pattern_name=?,pattern_description=?,pattern_name=?,pattern_schema=?,pattern_group=? where pattern_id=?");
+                statement.setInt(1, newPattern.getId());
+                statement.setString(2, newPattern.getDescription());
+                statement.setString(3, newPattern.getName());
+                statement.setBytes(4, newPattern.getImage().array());
+                statement.setInt(5,newPattern.getGroup());
+                statement.setInt(6, oldPattern.getId());
+                statement.execute();
+            }else{
+                PreparedStatement statement = connection.prepareStatement("update govno set pattern_name=?,pattern_description=?,pattern_name=?,pattern_group=? where pattern_id=?");
+                statement.setInt(1, newPattern.getId());
+                statement.setString(2, newPattern.getDescription());
+                statement.setString(3, newPattern.getName());
+                statement.setInt(4,newPattern.getGroup());
+                statement.setInt(5, oldPattern.getId());
+                statement.execute();
+            }
+            return ResponseCreator.success(getHeaderVersion(), newPattern.toString());
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot update pattern");
+            e.printStackTrace();
+            return ResponseCreator.error(500, 500, getHeaderVersion());
+        }
+    }
+
+    @GET
+    @Path("/pattern/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public String getPatternById(@PathParam("id") String patternId){
+        try{
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("select pattern_id, pattern_name, pattern_description, pattern_schema, pattern_group from govno where pattern_id ="+patternId);
+            if (resultSet.next()){
+                PatternModel patternModel = new PatternModel();
+                patternModel.setId(resultSet.getInt(1));
+                patternModel.setName(resultSet.getString(2));
+                patternModel.setDescription(resultSet.getString(3));
+                if (resultSet.getBlob(4) != null) {
+                    Blob blob = resultSet.getBlob(4);
+                    ByteBuffer buffer = ByteBuffer.wrap(blob.getBytes(1,(int)blob.length()));
+                    patternModel.setImage(buffer);
+                }
+                patternModel.setGroup(resultSet.getInt(5));
+                return gson.toJson(patternModel);
+            }
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot get pattern by id");
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    @DELETE
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response deletePattern(String jsonStr){
+        logger.log(Level.INFO, "Delete request from client");
+        logger.log(Level.INFO, "Pattern id =");
+        PatternModel patternModel  = gson.fromJson(jsonStr, PatternModel.class);
+        try{
+            Statement statement = connection.createStatement();
+            statement.execute("delete from govno where pattern_id ="+patternModel.getId());
+            statement.close();
+            return ResponseCreator.success(getHeaderVersion(),jsonStr);
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot delete pattern");
+            e.printStackTrace();
+            return ResponseCreator.error(500, 500, getHeaderVersion());
+        }
+    }
+
+    @POST
+    @Consumes(MediaType.APPLICATION_JSON)
+    public Response addPattern(String jsonStr){
+        System.out.println(jsonStr);
+        PatternModel patternModel = gson.fromJson(jsonStr, PatternModel.class);
+        System.out.println(patternModel.toString());
+        try{
+            Statement statement = connection.createStatement();
+            if (patternModel.getImage()!=null) {
+                byte[] schemaBytes = new byte[patternModel.getImage().capacity()];
+                for (int i=0; i<patternModel.getImage().capacity(); i++){
+                    schemaBytes[i] = patternModel.getImage().get(i);
+                }
+                PreparedStatement preparedStatement = connection.prepareStatement("insert into govno(pattern_description, pattern_name, pattern_schema, pattern_group) values(?,?,?,?)");
+                preparedStatement.setString(1,patternModel.getDescription());
+                preparedStatement.setString(2,patternModel.getName());
+                preparedStatement.setBytes(3,schemaBytes);
+                preparedStatement.setInt(4,patternModel.getGroup());
+                preparedStatement.execute();
+                preparedStatement.close();
+            }else
+                statement.execute("insert into govno(pattern_description, pattern_name, pattern_group) values('" + patternModel.getDescription() + "','" + patternModel.getName() + "','"+patternModel.getGroup()+"')");
+            statement.close();
+            return ResponseCreator.success(getHeaderVersion(),jsonStr);
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot apply pattern" + e.getMessage());
+            e.printStackTrace();
+            return ResponseCreator.error(500, 500, getHeaderVersion());
+        }
     }
 
     private ArrayList<PatternModel> createLists(ResultSet resultSet)throws SQLException{
@@ -92,63 +223,6 @@ public class PatternDAO {
         }
         resultSet.close();
         return returnList;
-    }
-
-    @GET
-    @Path("/pattern/{id}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public String getPatternById(@PathParam("id") String patternId){
-        try{
-            Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("select pattern_id, pattern_name, pattern_description, pattern_schema, pattern_group from govno where pattern_id ="+patternId);
-            if (resultSet.next()){
-                PatternModel patternModel = new PatternModel();
-                patternModel.setId(resultSet.getInt(1));
-                patternModel.setName(resultSet.getString(2));
-                patternModel.setDescription(resultSet.getString(3));
-                patternModel.setGroup(resultSet.getInt(5));
-                return gson.toJson(patternModel);
-            }
-        }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot get pattern by id");
-            e.printStackTrace();
-        }
-        return null;
-    }
-    @DELETE
-    @Consumes(MediaType.APPLICATION_JSON)
-    public void deletePattern(String jsonStr){
-        logger.log(Level.INFO, "Delete request from client");
-        logger.log(Level.INFO, "Pattern id =");
-        PatternModel patternModel  = gson.fromJson(jsonStr, PatternModel.class);
-        try{
-            Statement statement = connection.createStatement();
-            statement.execute("delete from govno where pattern_id ="+patternModel.getId());
-            statement.close();
-        }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot delete pattern");
-            e.printStackTrace();
-        }
-    }
-    @POST
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response addPattern(String jsonStr){
-        System.out.println(jsonStr);
-        PatternModel patternModel = gson.fromJson(jsonStr, PatternModel.class);
-        System.out.println(patternModel.toString());
-        try{
-                PreparedStatement statement = connection.prepareStatement("insert into govno(pattern_name, pattern_description, pattern_group) values(?,?,?)");
-                statement.setString(1, patternModel.getName());
-                statement.setString(2, patternModel.getDescription());
-                statement.setInt(3, patternModel.getGroup());
-                statement.execute();
-                statement.close();
-                return ResponseCreator.success(getHeaderVersion(),jsonStr);
-        }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot apply pattern" + e.getMessage());
-            e.printStackTrace();
-            return ResponseCreator.error(500, 500, getHeaderVersion());
-        }
     }
 
     private String getHeaderVersion(){
