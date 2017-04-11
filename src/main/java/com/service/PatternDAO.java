@@ -10,7 +10,6 @@ import org.apache.logging.log4j.Logger;
 import javax.enterprise.context.ApplicationScoped;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
-import javax.print.attribute.standard.Media;
 import javax.sql.DataSource;
 import javax.ws.rs.*;
 import javax.ws.rs.core.Context;
@@ -104,16 +103,16 @@ public class PatternDAO {
         PatternModel newPattern = updateList.get(1);
         try{
             if (newPattern.getImage() != null) {
-                PreparedStatement statement = connection.prepareStatement("update govno set pattern_name=?,pattern_description=?,pattern_name=?,pattern_schema=?,pattern_group=? where pattern_id=?");
+                PreparedStatement statement = connection.prepareStatement("update patterns set pattern_name=?,pattern_description=?,pattern_name=?,pattern_schema=?,pattern_group=? where pattern_id=?");
                 statement.setInt(1, newPattern.getId());
                 statement.setString(2, newPattern.getDescription());
                 statement.setString(3, newPattern.getName());
-                statement.setBytes(4, newPattern.getImage().array());
+                statement.setBytes(4, newPattern.getImage());
                 statement.setInt(5,newPattern.getGroup());
                 statement.setInt(6, oldPattern.getId());
                 statement.execute();
             }else{
-                PreparedStatement statement = connection.prepareStatement("update govno set pattern_name=?,pattern_description=?,pattern_name=?,pattern_group=? where pattern_id=?");
+                PreparedStatement statement = connection.prepareStatement("update patterns set pattern_name=?,pattern_description=?,pattern_name=?,pattern_group=? where pattern_id=?");
                 statement.setInt(1, newPattern.getId());
                 statement.setString(2, newPattern.getDescription());
                 statement.setString(3, newPattern.getName());
@@ -135,7 +134,7 @@ public class PatternDAO {
     public String getPatternById(@PathParam("id") String patternId){
         try{
             Statement statement = connection.createStatement();
-            ResultSet resultSet = statement.executeQuery("select pattern_id, pattern_name, pattern_description, pattern_schema, pattern_group from govno where pattern_id ="+patternId);
+            ResultSet resultSet = statement.executeQuery("select pattern_id, pattern_name, pattern_description, pattern_schema, pattern_group from patterns where pattern_id ="+patternId);
             if (resultSet.next()){
                 PatternModel patternModel = new PatternModel();
                 patternModel.setId(resultSet.getInt(1));
@@ -143,8 +142,7 @@ public class PatternDAO {
                 patternModel.setDescription(resultSet.getString(3));
                 if (resultSet.getBlob(4) != null) {
                     Blob blob = resultSet.getBlob(4);
-                    ByteBuffer buffer = ByteBuffer.wrap(blob.getBytes(1,(int)blob.length()));
-                    patternModel.setImage(buffer);
+                    patternModel.setImage(blob.getBytes(1,(int)blob.length()));
                 }
                 patternModel.setGroup(resultSet.getInt(5));
                 return gson.toJson(patternModel);
@@ -157,16 +155,16 @@ public class PatternDAO {
     }
 
     @DELETE
-    @Consumes(MediaType.APPLICATION_JSON)
-    public Response deletePattern(String jsonStr){
+    @Path("/{id}")
+    public Response deletePattern(@PathParam("id") String id){
         logger.log(Level.INFO, "Delete request from client");
-        logger.log(Level.INFO, "Pattern id =");
-        PatternModel patternModel  = gson.fromJson(jsonStr, PatternModel.class);
+        logger.log(Level.INFO, "Pattern id ="+id);
+        System.out.println(id);
         try{
             Statement statement = connection.createStatement();
-            statement.execute("delete from govno where pattern_id ="+patternModel.getId());
+            statement.execute("delete from patterns where pattern_id ="+id);
             statement.close();
-            return ResponseCreator.success(getHeaderVersion(),jsonStr);
+            return ResponseCreator.success(getHeaderVersion(),id);
         }catch (SQLException e){
             logger.log(Level.ERROR, "Cannot delete pattern");
             e.printStackTrace();
@@ -183,11 +181,8 @@ public class PatternDAO {
         try{
             Statement statement = connection.createStatement();
             if (patternModel.getImage()!=null) {
-                byte[] schemaBytes = new byte[patternModel.getImage().capacity()];
-                for (int i=0; i<patternModel.getImage().capacity(); i++){
-                    schemaBytes[i] = patternModel.getImage().get(i);
-                }
-                PreparedStatement preparedStatement = connection.prepareStatement("insert into govno(pattern_description, pattern_name, pattern_schema, pattern_group) values(?,?,?,?)");
+                byte[] schemaBytes = patternModel.getImage();
+                PreparedStatement preparedStatement = connection.prepareStatement("insert into patterns(pattern_description, pattern_name, pattern_schema, pattern_group) values(?,?,?,?)");
                 preparedStatement.setString(1,patternModel.getDescription());
                 preparedStatement.setString(2,patternModel.getName());
                 preparedStatement.setBytes(3,schemaBytes);
@@ -195,7 +190,7 @@ public class PatternDAO {
                 preparedStatement.execute();
                 preparedStatement.close();
             }else
-                statement.execute("insert into govno(pattern_description, pattern_name, pattern_group) values('" + patternModel.getDescription() + "','" + patternModel.getName() + "','"+patternModel.getGroup()+"')");
+                statement.execute("insert into patterns(pattern_description, pattern_name, pattern_group) values('" + patternModel.getDescription() + "','" + patternModel.getName() + "','"+patternModel.getGroup()+"')");
             statement.close();
             return ResponseCreator.success(getHeaderVersion(),jsonStr);
         }catch (SQLException e){
@@ -211,8 +206,7 @@ public class PatternDAO {
             PatternModel pattern = new PatternModel();
             if (resultSet.getBinaryStream(4) != null){
                 Blob blob = resultSet.getBlob(4);
-                ByteBuffer byteBuffer = ByteBuffer.wrap(blob.getBytes(1,(int)blob.length()));
-                pattern.setImage(byteBuffer);
+                pattern.setImage(blob.getBytes(1,(int)blob.length()));
             }
             pattern.setId(resultSet.getInt(1));
             pattern.setName(resultSet.getString(2));

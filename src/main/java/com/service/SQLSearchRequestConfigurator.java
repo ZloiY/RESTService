@@ -1,6 +1,5 @@
 package com.service;
 
-import java.nio.ByteBuffer;
 
 /**
  * Класс формирующий поисковый запрос для базы данных SQL
@@ -59,7 +58,7 @@ public class SQLSearchRequestConfigurator {
      */
     private String searchStatementWith3Parametres(String gropuSearch, String nameSearch, String descriptionSearch){
         if (gropuSearch.isEmpty() && nameSearch.isEmpty() && descriptionSearch.isEmpty())
-            return "select * from govno";
+            return "select * from patterns";
         if (gropuSearch.isEmpty() || nameSearch.isEmpty() || descriptionSearch.isEmpty()){
             if (gropuSearch.isEmpty() && !nameSearch.isEmpty() && !descriptionSearch.isEmpty())
                 return searchStatementWith2Parametres(nameSearch, descriptionSearch);
@@ -73,7 +72,7 @@ public class SQLSearchRequestConfigurator {
                 return searchStatementWith1Parametr(nameSearch);
             else if (descriptionSearch.isEmpty() && nameSearch.isEmpty() && !gropuSearch.isEmpty())
                 return searchStatementWith1Parametr(gropuSearch);
-        }else return "select * from govno where "+gropuSearch+" and "+descriptionSearch+" and "+nameSearch;
+        }else return "select * from patterns where "+gropuSearch+" and "+descriptionSearch+" and "+nameSearch;
         return null;
     }
 
@@ -88,7 +87,7 @@ public class SQLSearchRequestConfigurator {
             if (firstParametr.isEmpty())
             return searchStatementWith1Parametr(secondParametr);
             else return searchStatementWith1Parametr(secondParametr);
-        else return "select * from govno where "+firstParametr+" and "+secondParametr;
+        else return "select * from patterns where "+firstParametr+" and "+secondParametr;
     }
 
     /**
@@ -97,7 +96,7 @@ public class SQLSearchRequestConfigurator {
      * @return готовый поисковый запрос
      */
     private String searchStatementWith1Parametr(String searchParametr){
-        return "select * from govno where "+searchParametr;
+        return "select * from patterns where "+searchParametr;
     }
 
     /**

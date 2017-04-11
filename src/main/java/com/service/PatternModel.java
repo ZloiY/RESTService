@@ -9,7 +9,7 @@ public class PatternModel {
     private int id;
     private String name;
     private String description;
-    private ByteBuffer image;
+    private byte[] image;
     private int group;
 
     public PatternModel(){}
@@ -38,11 +38,11 @@ public class PatternModel {
         this.description = description;
     }
 
-    public ByteBuffer getImage() {
+    public byte[] getImage() {
         return image;
     }
 
-    public void setImage(ByteBuffer image) {
+    public void setImage(byte[] image) {
         this.image = image;
     }
 
