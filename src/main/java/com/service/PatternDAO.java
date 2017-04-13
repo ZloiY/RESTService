@@ -2,33 +2,31 @@ package com.service;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.glassfish.jersey.logging.LoggingFeature;
+import org.glassfish.jersey.server.ResourceConfig;
 
-
-import javax.enterprise.context.ApplicationScoped;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
 import javax.sql.DataSource;
 import javax.ws.rs.*;
-import javax.ws.rs.core.Context;
-import javax.ws.rs.core.HttpHeaders;
-import javax.ws.rs.core.MediaType;
-import javax.ws.rs.core.Response;
+import javax.ws.rs.core.*;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.ByteBuffer;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Properties;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 /**
  * Created by ZloiY on 05.04.17.
  */
 @Path("/patterndao")
-@ApplicationScoped
-public class PatternDAO {
-    private Logger logger;
+public class PatternDAO extends Application {
+    //private Logger logger;
     private DataSource mySQLDataSource;
     private Connection connection;
     private Gson gson;
@@ -37,18 +35,31 @@ public class PatternDAO {
     private HttpHeaders requsetHeaders;
 
     public PatternDAO() {
-        logger = LogManager.getLogger("MyLogger");
+        //logger = LogManager.getLogger("MyLogger");
+        Logger logger =Logger.getLogger("myApp");
+//        Properties preferences = new Properties();
+//        try {
+//            FileInputStream configFile = new FileInputStream("src/main/logger.properties");
+//            preferences.load(configFile);
+//            LogManager.getLogManager().readConfiguration(configFile);
+//        } catch (IOException ex)
+//        {
+//            System.out.println("WARNING: Could not open configuration file");
+//            System.out.println("WARNING: Logging not configured (console output only)");
+//        }
+        ResourceConfig config = new ResourceConfig(PatternDAO.class);
+        config.register(new LoggingFeature(logger, LoggingFeature.Verbosity.PAYLOAD_ANY));
         gson = new Gson();
         try {
             mySQLDataSource = (DataSource) new InitialContext().lookup("jdbc/MySQLDataSource");
         } catch (NamingException e) {
-            logger.log(Level.ERROR, "Cannot get DataSource");
+//            logger.log(Level.ERROR, "Cannot get DataSource");
             e.printStackTrace();
         }
         try {
             connection = mySQLDataSource.getConnection("user", "user");
         }catch(SQLException e){
-            logger.log(Level.ERROR, "Cannot connect to DB");
+//            logger.log(Level.ERROR, "Cannot connect to DB");
             e.printStackTrace();
         }
     }
@@ -67,7 +78,7 @@ public class PatternDAO {
             myType = new TypeToken<List<PatternModel>>() {}.getType();
             return gson.toJson(allpatterns, myType);
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot get all patterns");
+//            logger.log(Level.ERROR, "Cannot get all patterns");
             e.printStackTrace();
         }
         return null;
@@ -88,7 +99,7 @@ public class PatternDAO {
             myType = new TypeToken<List<PatternModel>>() {}.getType();
             return  gson.toJson(allPatterns, myType);
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot get pattern by name");
+//            logger.log(Level.ERROR, "Cannot get pattern by name");
             e.printStackTrace();
         }
         return null;
@@ -122,7 +133,7 @@ public class PatternDAO {
             }
             return ResponseCreator.success(getHeaderVersion(), newPattern.toString());
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot update pattern");
+//            logger.log(Level.ERROR, "Cannot update pattern");
             e.printStackTrace();
             return ResponseCreator.error(500, 500, getHeaderVersion());
         }
@@ -148,7 +159,7 @@ public class PatternDAO {
                 return gson.toJson(patternModel);
             }
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot get pattern by id");
+//            logger.log(Level.ERROR, "Cannot get pattern by id");
             e.printStackTrace();
         }
         return null;
@@ -157,8 +168,8 @@ public class PatternDAO {
     @DELETE
     @Path("/{id}")
     public Response deletePattern(@PathParam("id") String id){
-        logger.log(Level.INFO, "Delete request from client");
-        logger.log(Level.INFO, "Pattern id ="+id);
+        //logger.log(Level.INFO, "Delete request from client");
+        //logger.log(Level.INFO, "Pattern id ="+id);
         System.out.println(id);
         try{
             Statement statement = connection.createStatement();
@@ -166,7 +177,7 @@ public class PatternDAO {
             statement.close();
             return ResponseCreator.success(getHeaderVersion(),id);
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot delete pattern");
+//            logger.log(Level.ERROR, "Cannot delete pattern");
             e.printStackTrace();
             return ResponseCreator.error(500, 500, getHeaderVersion());
         }
@@ -194,7 +205,7 @@ public class PatternDAO {
             statement.close();
             return ResponseCreator.success(getHeaderVersion(),jsonStr);
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot apply pattern" + e.getMessage());
+//            logger.log(Level.ERROR, "Cannot apply pattern" + e.getMessage());
             e.printStackTrace();
             return ResponseCreator.error(500, 500, getHeaderVersion());
         }
@@ -213,7 +224,7 @@ public class PatternDAO {
             pattern.setDescription(resultSet.getString(3));
             pattern.setGroup(resultSet.getInt(5));
             returnList.add(pattern);
-            logger.log(Level.INFO,"Find pattern " + pattern.getName());
+//            logger.log(Level.INFO,"Find pattern " + pattern.getName());
         }
         resultSet.close();
         return returnList;
@@ -226,13 +237,13 @@ public class PatternDAO {
     private PatternModel assemblePttern(String paramsStr){
         PatternModel pattern = new PatternModel();
         if (paramsStr.contains("9")){
-        String[] params = paramsStr.split("9");
-        pattern.setName(params[0]);
-        pattern.setDescription(params[1]);
-        return pattern;}
+            String[] params = paramsStr.split("9");
+            pattern.setName(params[0]);
+            pattern.setDescription(params[1]);
+            return pattern;}
         else{
-         pattern.setGroup(Integer.parseInt(paramsStr));
-         return pattern;
+            pattern.setGroup(Integer.parseInt(paramsStr));
+            return pattern;
         }
     }
 }
