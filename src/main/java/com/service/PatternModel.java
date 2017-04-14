@@ -56,6 +56,8 @@ public class PatternModel {
 
     @Override
     public String toString() {
+        if (image == null)
         return id + " " +name + " " + description + " " +group+"\n";
+        else return id+" "+name+" "+description+" "+group+" "+"with image"+"\n";
     }
 }
