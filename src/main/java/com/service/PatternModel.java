@@ -1,15 +1,31 @@
 package com.service;
 
+import javax.ws.rs.Path;
 import java.nio.ByteBuffer;
 
 /**
- * Created by ZloiY on 06.04.17.
+ * Модель паттерна
  */
 public class PatternModel {
+    /**
+     * id паттерна в базе данных
+     */
     private int id;
+    /**
+     * Название паттерна
+     */
     private String name;
+    /**
+     * Описание паттерна
+     */
     private String description;
+    /**
+     * Изображение паттерна
+     */
     private byte[] image;
+    /**
+     * Группа паттерна
+     */
     private int group;
 
     public PatternModel(){}
@@ -57,7 +73,7 @@ public class PatternModel {
     @Override
     public String toString() {
         if (image == null)
-        return id + " " +name + " " + description + " " +group+"\n";
-        else return id+" "+name+" "+description+" "+group+" "+"with image"+"\n";
+        return id + " " +name + " " + description + " " +group;
+        else return id+" "+name+" "+description+" "+group+" "+"with image";
     }
 }

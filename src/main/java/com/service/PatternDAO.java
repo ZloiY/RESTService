@@ -6,27 +6,50 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import javax.activation.MimetypesFileTypeMap;
 import javax.naming.InitialContext;
 import javax.naming.NamingException;
+import javax.servlet.http.HttpServletResponse;
 import javax.sql.DataSource;
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.lang.reflect.Type;
+import java.net.URI;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * Created by ZloiY on 05.04.17.
+ * Главный класс сервиса отвечающий на запросы клиента.
+ * Поддерживает запросы POST,GET,PUT,DELETE.
  */
-@Path("/patterndao")
+@Path("/patterns")
 public class PatternDAO extends Application {
+    /**
+     * Логгер
+     */
     private Logger logger;
+    /**
+     * Используемая база данных
+     */
     private DataSource mySQLDataSource;
+    /**
+     * Соединение с базой данных
+     */
     private Connection connection;
+    /**
+     * Служит для преобразования объекта в JSON и обратно
+     */
     private Gson gson;
+    /**
+     * Токен служащий для преобразования списков в JSON
+     */
     private Type myType;
 
+    /**
+     * Подключаем логер, полустанавливаем соединение с базой данных.
+     */
     public PatternDAO() {
         logger = LogManager.getLogger("MyLogger");
         gson = new Gson();
@@ -34,24 +57,30 @@ public class PatternDAO extends Application {
             mySQLDataSource = (DataSource) new InitialContext().lookup("jdbc/MySQLDataSource");
         } catch (NamingException e) {
             logger.log(Level.ERROR, "Cannot get DataSource");
-            e.printStackTrace();
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
         }
         try {
             connection = mySQLDataSource.getConnection("user", "user");
         }catch(SQLException e){
             logger.log(Level.ERROR, "Cannot connect to DB");
-            e.printStackTrace();
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
         }
         logger.log(Level.INFO, "Connect to database");
     }
 
+    /**
+     * Выполняется на получение запроса GET от клиента.
+     * Возвращает список паттернов согласно полученному имени.
+     * @param name Имя по которому ищется паттерн
+     * @return Возвращает все совподения согласно модели поиска в формате JSON
+     */
     @GET
-    @Path("/get")
+    @Path("/name/{name}")
     @Produces(MediaType.APPLICATION_JSON)
-    public String getPatternByName(@QueryParam("pattern")String pattern){
-        String json = "{"+pattern+"}";
-        PatternModel patternModel = gson.fromJson(json,PatternModel.class);
-        logger.log(Level.INFO, "GET request from client "+patternModel.toString());
+    public Response getPattern(@PathParam("name")String name){
+        PatternModel patternModel = new PatternModel();
+        patternModel.setName(name);
+        logger.log(Level.INFO, "GET request from client name: "+name);
         try{
             Statement statement = connection.createStatement();
             SQLSearchRequestConfigurator sqlSearchRequestConfigurator = new SQLSearchRequestConfigurator(patternModel);
@@ -60,21 +89,91 @@ public class PatternDAO extends Application {
             statement.close();
             myType = new TypeToken<List<PatternModel>>() {}.getType();
             connection.close();
-            return  gson.toJson(allPatterns, myType);
+            return  Response.status(200).entity(gson.toJson(allPatterns, myType)).type(MediaType.TEXT_PLAIN_TYPE).build();
         }catch (SQLException e){
             logger.log(Level.ERROR, "Cannot get pattern by name");
-            e.printStackTrace();
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
         }
         return null;
     }
 
+    /**
+     * Выполняется наполучение запроса GET от клиента.
+     * Возвращает список патернов согласно полученным имени и группе.
+     * @param group группа по которой идйт поиск
+     * @param name имя по которому идёт поиск
+     * @return возвращает все совпадения согласно модели поиска
+     */
+    @GET
+    @Path("/group/{group}/name/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getPatternGroupName(@PathParam("group")int group, @PathParam("name")String name){
+        PatternModel patternModel = new PatternModel();
+        patternModel.setName(name);
+        patternModel.setGroup(group);
+        logger.log(Level.INFO, "GET request from client name: "+name+", client group: "+group);
+        try{
+            Statement statement = connection.createStatement();
+            SQLSearchRequestConfigurator sqlSearchRequestConfigurator = new SQLSearchRequestConfigurator(patternModel);
+            ResultSet resultSet = statement.executeQuery(sqlSearchRequestConfigurator.getSearchRequest());
+            List<PatternModel> allPatterns = createLists(resultSet);
+            statement.close();
+            myType = new TypeToken<List<PatternModel>>() {}.getType();
+            connection.close();
+            return  Response.status(200).entity(gson.toJson(allPatterns, myType)).type(MediaType.TEXT_PLAIN_TYPE).build();
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot get pattern by name and group");
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
+        }
+        return null;
+    }
+
+    /**
+     * Выполняется на получение запроса GET от клиента.
+     * Возвращает список паттернов согласно полученному имени.
+     * @param group группа по которой идёт поиск паттернов
+     * @return возвращает вск совпадения согласно модели поиска в формате JSON
+     */
+    @GET
+    @Path("/group/{group}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getPatternGroup(@PathParam("group")int group){
+        PatternModel patternModel = new PatternModel();
+        patternModel.setGroup(group);
+        logger.log(Level.INFO, "GET request from client group: "+group);
+        try{
+            throw new SQLException();
+//            Statement statement = connection.createStatement();
+//            SQLSearchRequestConfigurator sqlSearchRequestConfigurator = new SQLSearchRequestConfigurator(patternModel);
+//            ResultSet resultSet = statement.executeQuery(sqlSearchRequestConfigurator.getSearchRequest());
+//            List<PatternModel> allPatterns = createLists(resultSet);
+//            statement.close();
+//            myType = new TypeToken<List<PatternModel>>() {}.getType();
+//            connection.close();
+//            return  Response.status(200).entity(gson.toJson(allPatterns, myType)).type(MediaType.TEXT_PLAIN_TYPE).build();
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot get pattern by group");
+            logger.log(Level.ERROR,  Arrays.toString(e.getStackTrace()));
+            return Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
+        }
+    }
+
+    /**
+     * Выполняется при получении запроса PUT от клиента.
+     * Заменяет текущий паттерн на новый.
+     * @param jsonStr список из двух паттернов, 1 - старый паттерн, 2- новый паттерн
+     * @return Возвращает код 200 если операция выполнена и 500 если операция не выполнена
+     */
     @PUT
+    @Path("pattern/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
-    public Response updatePattern(String jsonStr){
-        myType = new TypeToken<List<PatternModel>>() {}.getType();
-        List<PatternModel> updateList = gson.fromJson(jsonStr, myType);
-        PatternModel oldPattern = updateList.get(0);
-        PatternModel newPattern = updateList.get(1);
+    public Response updatePattern(@PathParam("id") int replaceID, String jsonStr){
+        PatternModel newPattern =  gson.fromJson(jsonStr, PatternModel.class);
+        newPattern.setId(replaceID);
+        PatternModel oldPattern = new PatternModel();
+        oldPattern.setId(replaceID);
         logger.log(Level.INFO, "PUT request from client "+newPattern.toString());
         try{
             if (newPattern.getImage() != null) {
@@ -96,18 +195,23 @@ public class PatternDAO extends Application {
                 statement.execute();
             }
             connection.close();
-            return ResponseCreator.success(getHeaderVersion(), newPattern.toString());
+            return Response.status(200).entity(newPattern.toString() + " Successfully updated").type(MediaType.TEXT_PLAIN_TYPE).build();
         }catch (SQLException e){
             logger.log(Level.ERROR, "Cannot update pattern");
-            e.printStackTrace();
-            return ResponseCreator.error(500, 500, getHeaderVersion());
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            return Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
         }
     }
 
+    /**
+     * Возвращает паттерн по его id
+     * @param patternId id паттерна
+     * @return модель паттерна согласно его id
+     */
     @GET
-    @Path("/pattern/{id}")
+    @Path("pattern/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    public String getPatternById(@PathParam("id") String patternId){
+    public Response getPatternById(@PathParam("id") String patternId){
         logger.log(Level.INFO,"GET request from client /pattern/"+patternId);
         try{
             Statement statement = connection.createStatement();
@@ -123,17 +227,24 @@ public class PatternDAO extends Application {
                 }
                 patternModel.setGroup(resultSet.getInt(5));
                 connection.close();
-                return gson.toJson(patternModel);
+                return Response.status(200).entity(gson.toJson(patternModel)).type(MediaType.TEXT_PLAIN_TYPE).build();
             }
         }catch (SQLException e){
             logger.log(Level.ERROR, "Cannot get pattern by id");
-            e.printStackTrace();
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            return Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
         }
-        return null;
+        return Response.status(205).build();
     }
 
+    /**
+     * Выполняется при получении запроса DELETE от клиента.
+     * Удаляет паттерн из базы данных.
+     * @param id id паттерна в базе данных
+     * @return код 200 если операция проведена успешно, 500 если произошла ошибка
+     */
     @DELETE
-    @Path("/{id}")
+    @Path("pattern/{id}")
     public Response deletePattern(@PathParam("id") String id){
         logger.log(Level.INFO, "DELETE request from client id "+id);
         try{
@@ -141,19 +252,25 @@ public class PatternDAO extends Application {
             statement.execute("delete from patterns where pattern_id ="+id);
             statement.close();
             connection.close();
-            return ResponseCreator.success(getHeaderVersion(),id);
+            return Response.status(200).entity(id + " this pattern deleted").type(MediaType.TEXT_PLAIN_TYPE).build();
         }catch (SQLException e){
             logger.log(Level.ERROR, "Cannot delete pattern");
-            e.printStackTrace();
-            return ResponseCreator.error(500, 500, getHeaderVersion());
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            return Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
         }
     }
 
+    /**
+     * Выполняется при получении запроса POST от клиента.
+     * Добавляет новый паттерн в базу данных.
+     * @param jsonStr паттерн для добавления
+     * @return код 200 еслі операція проведена успешно, 500 если произошла ошибка.
+     */
     @POST
+    @Path("/pattern")
     @Consumes(MediaType.APPLICATION_JSON)
     public Response addPattern(String jsonStr){
         PatternModel patternModel = gson.fromJson(jsonStr, PatternModel.class);
-        logger.log(Level.INFO,"POST request from client "+patternModel.toString());
         try{
             Statement statement = connection.createStatement();
             if (patternModel.getImage()!=null) {
@@ -168,15 +285,22 @@ public class PatternDAO extends Application {
             }else
                 statement.execute("insert into patterns(pattern_description, pattern_name, pattern_group) values('" + patternModel.getDescription() + "','" + patternModel.getName() + "','"+patternModel.getGroup()+"')");
             statement.close();
+            patternModel.setId(lastId());
             connection.close();
-            return ResponseCreator.success(getHeaderVersion(),jsonStr);
+            logger.log(Level.INFO,"POST request from client "+patternModel.toString());
+            return Response.status(200).entity(patternModel.toString()+" added").type(MediaType.TEXT_PLAIN_TYPE).build();
         }catch (SQLException e){
-            logger.log(Level.ERROR, "Cannot apply pattern" + e.getMessage());
-            e.printStackTrace();
-            return ResponseCreator.error(500, 500, getHeaderVersion());
+            logger.log(Level.ERROR, "Cannot apply pattern");
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            return Response.status(500).entity(e.getMessage()).type(MediaType.TEXT_PLAIN_TYPE).build();
         }
     }
-
+    /**
+     * Используется в getPattern() для формирования списка паттернов из найденных данных в базе данных.
+     * @param resultSet данные из базы данных
+     * @return список найденных паттернов
+     * @throws SQLException выбрасывается при сбоях вработе с базой данных
+     */
     private ArrayList<PatternModel> createLists(ResultSet resultSet)throws SQLException{
         ArrayList<PatternModel> returnList = new ArrayList<PatternModel>();
         while (resultSet.next()) {
@@ -196,7 +320,19 @@ public class PatternDAO extends Application {
         return returnList;
     }
 
-    private String getHeaderVersion(){
-        return "some header";
+    private int lastId(){
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("SELECT pattern_id FROM patterns ORDER BY pattern_id DESC LIMIT 1");
+            if (resultSet.next()) {
+                return resultSet.getInt("pattern_id");
+            }else{
+                return 0;
+            }
+        }catch (SQLException e){
+            logger.log(Level.ERROR, "Cannot get last id");
+            logger.log(Level.ERROR, Arrays.toString(e.getStackTrace()));
+            return 0;
+        }
     }
 }
